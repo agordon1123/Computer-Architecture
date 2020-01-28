@@ -1,5 +1,9 @@
 """CPU functionality."""
 
+LDI = 0b10000010
+PRN = 0b01000111
+HLT = 0b00000001
+
 import sys
 
 class CPU:
@@ -7,7 +11,9 @@ class CPU:
 
     def __init__(self):
         """Construct a new CPU."""
-        pass
+        self.reg = [0] * 8
+        self.ram = [0] * 256
+        self.pc = 0
 
     def load(self):
         """Load a program into memory."""
@@ -62,4 +68,33 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
-        pass
+        # read value in self.pc
+        running = True
+
+        while running:
+            IR = self.ram[self.pc]
+            # TODO: printing dec val of bin num
+            if IR == LDI:
+                # Load immediate
+                reg = self.ram[self.pc + 1]
+                val = self.ram[self.pc + 2]
+                self.reg[reg] = val
+                self.pc += 3
+            elif IR == PRN:
+                # PRINT
+                reg = self.ram[self.pc + 1]
+                print(f"{self.reg[reg]}")
+                self.pc += 2
+            elif IR == HLT:
+                # HALT
+                running = False
+                break
+
+
+    def ram_write(self, address, value):
+        self.ram[address] = value
+        return f"Wrote {value} to RAM address: {address}"
+
+    def ram_read(self, address):
+        # TODO: does not have any check here. do we need one?
+        return self.ram[address]
