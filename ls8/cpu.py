@@ -3,6 +3,7 @@
 LDI = 0b10000010
 PRN = 0b01000111
 HLT = 0b00000001
+MUL = 0b10100010
 
 import sys
 
@@ -14,10 +15,13 @@ class CPU:
         self.reg = [0] * 8
         self.ram = [0] * 256
         self.pc = 0
+        self.branchtable = {}
+        # TODO: not sure how to reference and call the function
+        self.branchtable[0b10000010] = self.reg_write
+        self.branchtable[0b01000111] = self.print_reg
 
     def load(self):
         """Load a program into memory."""
-
         try:
             address = 0
             cmd_file = sys.argv[1]
@@ -30,7 +34,7 @@ class CPU:
                     if command == "":
                         # ignore blank lines
                         continue
-                        
+                    
                     value = int(command, 2)
                     self.ram[address] = value
                     address += 1
@@ -45,6 +49,9 @@ class CPU:
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
         #elif op == "SUB": etc
+        elif op == "MUL":
+            self.reg[reg_a] *= self.reg[reg_b]
+            return self.reg[reg_a]
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -75,28 +82,39 @@ class CPU:
 
         while running:
             IR = self.ram[self.pc]
-            # TODO: printing dec val of bin num
-            if IR == LDI:
-                # Load immediate
-                reg = self.ram[self.pc + 1]
-                val = self.ram[self.pc + 2]
-                self.reg[reg] = val
-                self.pc += 3
-            elif IR == PRN:
-                # PRINT
-                reg = self.ram[self.pc + 1]
-                print(f"{self.reg[reg]}")
-                self.pc += 2
-            elif IR == HLT:
-                # HALT
+            args = IR>>6
+
+            if IR == 0b00000001: # HLT
                 running = False
                 break
+            elif IR == 0b10100010: #ALU MUL
+                self.alu("MUL", self.ram[self.pc + 1], self.ram[self.pc + 2])
+            else: # HELPER METHODS
+                self.branchtable[IR]()
 
+            # update program count 
+            self.pc += args
+            self.pc += 1
 
-    def ram_write(self, address, value):
+    def ram_write(self):
+        address = self.ram[self.pc + 1]
+        value = self.ram[self.pc + 2]
         self.ram[address] = value
         return f"Wrote {value} to RAM address: {address}"
 
     def ram_read(self, address):
-        # TODO: does not have any check here. do we need one?
         return self.ram[address]
+
+    def reg_write(self):
+        address = self.ram[self.pc + 1]
+        value = self.ram[self.pc + 2]
+        self.reg[address] = value
+        return f"Wrote {value} to REG address: {address}"
+    
+    def reg_read(self):
+        address = self.ram[self.pc + 1]
+        return self.reg[address]
+
+    def print_reg(self):
+        address = self.ram[self.pc + 1]
+        print(self.reg[address])
