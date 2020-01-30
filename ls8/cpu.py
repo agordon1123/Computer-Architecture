@@ -4,6 +4,7 @@ LDI = 0b10000010
 PRN = 0b01000111
 HLT = 0b00000001
 MUL = 0b10100010
+SP = 7
 
 import sys
 
@@ -13,12 +14,14 @@ class CPU:
     def __init__(self):
         """Construct a new CPU."""
         self.reg = [0] * 8
+        self.reg[SP] = 243
         self.ram = [0] * 256
         self.pc = 0
         self.branchtable = {}
-        # TODO: not sure how to reference and call the function
         self.branchtable[0b10000010] = self.reg_write
         self.branchtable[0b01000111] = self.print_reg
+        self.branchtable[0b01000101] = self.push_stack
+        self.branchtable[0b01000110] = self.pop_stack
 
     def load(self):
         """Load a program into memory."""
@@ -110,7 +113,7 @@ class CPU:
         value = self.ram[self.pc + 2]
         self.reg[address] = value
         return f"Wrote {value} to REG address: {address}"
-    
+
     def reg_read(self):
         address = self.ram[self.pc + 1]
         return self.reg[address]
@@ -118,3 +121,12 @@ class CPU:
     def print_reg(self):
         address = self.ram[self.pc + 1]
         print(self.reg[address])
+
+    def push_stack(self):
+        self.reg[SP] -= 1
+        self.ram[self.reg[SP]] = self.reg[self.ram[self.pc + 1]]
+
+    def pop_stack(self):
+        copy = self.ram[self.reg[SP]]
+        self.reg[self.ram[self.pc + 1]] = copy
+        self.reg[SP] += 1
