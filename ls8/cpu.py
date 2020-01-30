@@ -5,6 +5,7 @@ PRN = 0b01000111
 HLT = 0b00000001
 MUL = 0b10100010
 SP = 7
+MULT2PRINT = 0b00011000
 
 import sys
 
@@ -22,6 +23,7 @@ class CPU:
         self.branchtable[0b01000111] = self.print_reg
         self.branchtable[0b01000101] = self.push_stack
         self.branchtable[0b01000110] = self.pop_stack
+        self.branchtable[0b00011000] = self.mult_2_print
 
     def load(self):
         """Load a program into memory."""
@@ -85,19 +87,38 @@ class CPU:
 
         while running:
             IR = self.ram[self.pc]
-            args = IR>>6
+            args = IR >> 6
+            subroutine = IR >> 4 & 1
 
             if IR == 0b00000001: # HLT
                 running = False
                 break
-            elif IR == 0b10100010: #ALU MUL
+            elif IR == 0b01010000: # CALL
+                # push return address on stack
+                return_address = self.pc + 2
+                self.reg[SP] -= 1 #decrement sp
+                self.ram[self.reg[SP]] = return_address
+                # set the pc to the value in the register
+                reg_num = self.ram[self.pc + 1]
+                self.pc = self.reg[reg_num]
+            elif IR == 0b00010001: # RET
+                # pop the return address off stack
+                # store it in the pc
+                self.pc = self.ram[self.reg[SP]]
+                self.reg[SP] += 1
+            elif IR == 0b10100010: # MUL
                 self.alu("MUL", self.ram[self.pc + 1], self.ram[self.pc + 2])
+            elif IR == 0b10100000: # ADD
+                self.alu("ADD", self.ram[self.pc + 1], self.ram[self.pc + 2])
             else: # HELPER METHODS
                 self.branchtable[IR]()
 
             # update program count 
-            self.pc += args
-            self.pc += 1
+            if args and not subroutine:
+                self.pc += args
+                self.pc += 1
+            elif not args and not subroutine:
+                self.pc += 1
 
     def ram_write(self):
         address = self.ram[self.pc + 1]
@@ -130,3 +151,7 @@ class CPU:
         copy = self.ram[self.reg[SP]]
         self.reg[self.ram[self.pc + 1]] = copy
         self.reg[SP] += 1
+
+    def mult_2_print(self):
+        reg = 0
+        print(self.reg[reg] * 2)
