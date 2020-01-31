@@ -6,8 +6,13 @@ HLT = 0b00000001
 MUL = 0b10100010
 SP = 7
 MULT2PRINT = 0b00011000
+# JMP = 0b01010100
+# JEQ = 0b01010101
+# JNE = 0b01010110
+# CMP = 0b10100111
 
 import sys
+import pdb
 
 class CPU:
     """Main CPU class."""
@@ -18,12 +23,14 @@ class CPU:
         self.reg[SP] = 243
         self.ram = [0] * 256
         self.pc = 0
+        self.fl = 0b0
         self.branchtable = {}
         self.branchtable[0b10000010] = self.reg_write
         self.branchtable[0b01000111] = self.print_reg
         self.branchtable[0b01000101] = self.push_stack
         self.branchtable[0b01000110] = self.pop_stack
         self.branchtable[0b00011000] = self.mult_2_print
+        self.branchtable[0b01010100] = self.handle_jmp
 
     def load(self):
         """Load a program into memory."""
@@ -53,10 +60,38 @@ class CPU:
 
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
-        #elif op == "SUB": etc
+        
         elif op == "MUL":
             self.reg[reg_a] *= self.reg[reg_b]
             return self.reg[reg_a]
+        
+        elif op == "CMP":
+            if reg_a == reg_b:
+                # set E flag to true
+                set_bit = (1 | self.fl)
+                self.fl = set_bit
+            else:
+                # set E flag to false
+                set_bit = (0 | self.fl)
+                self.fl = set_bit
+            if reg_a > reg_b:
+                # set G flag to true
+                set_bit = (1 << 1 | self.fl)
+                self.fl = set_bit
+            else:
+                # set G flag to false
+                self.fl = self.fl | 0b0
+                set_bit = (0 << 1 | self.fl)
+                self.fl = set_bit
+            if reg_a < reg_b:
+                # set L flag to true
+                set_bit = (1 << 2 | self.fl)
+                self.fl = set_bit
+            else:
+                # set L flag to false
+                set_bit = (0 << 2 | self.fl)
+                self.fl = set_bit
+
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -84,15 +119,15 @@ class CPU:
         """Run the CPU."""
         # read value in self.pc
         running = True
-
         while running:
             IR = self.ram[self.pc]
-            args = IR >> 6
-            subroutine = IR >> 4 & 1
+            params = (IR >> 6)
+            subroutine = ((IR >> 4) & 0b1) == 1
 
             if IR == 0b00000001: # HLT
                 running = False
                 break
+            
             elif IR == 0b01010000: # CALL
                 # push return address on stack
                 return_address = self.pc + 2
@@ -101,25 +136,52 @@ class CPU:
                 # set the pc to the value in the register
                 reg_num = self.ram[self.pc + 1]
                 self.pc = self.reg[reg_num]
+            
             elif IR == 0b00010001: # RET
                 # pop the return address off stack
                 # store it in the pc
                 self.pc = self.ram[self.reg[SP]]
                 self.reg[SP] += 1
+            
             elif IR == 0b10100010: # MUL
                 self.alu("MUL", self.ram[self.pc + 1], self.ram[self.pc + 2])
+                self.pc += params
+                self.pc += 1
+            
             elif IR == 0b10100000: # ADD
                 self.alu("ADD", self.ram[self.pc + 1], self.ram[self.pc + 2])
+                self.pc += params
+                self.pc += 1
+                            
+            elif IR == 0b10100111: #CMP
+                self.alu("CMP", self.reg[self.ram[self.pc + 1]], self.reg[self.ram[self.pc + 2]])
+                self.pc += params
+                self.pc += 1
+            
+            elif IR == 0b01010101: # JEQ
+                flag = (self.fl & 0b1)
+                if flag:
+                    # jump to the address stored in the given register
+                    self.handle_jmp()
+                else:
+                    self.pc += params
+                    self.pc += 1
+             
+            elif IR == 0b01010110: # JNE
+                flag = (self.fl & 0b1)
+                if not flag:
+                    # jump to the address stored in the given register
+                    self.handle_jmp()
+                else:
+                    self.pc += params
+                    self.pc += 1
+            
             else: # HELPER METHODS
                 self.branchtable[IR]()
-
-            # update program count 
-            if args and not subroutine:
-                self.pc += args
-                self.pc += 1
-            elif not args and not subroutine:
-                self.pc += 1
-
+                if not subroutine:
+                    self.pc += params
+                    self.pc += 1
+            
     def ram_write(self):
         address = self.ram[self.pc + 1]
         value = self.ram[self.pc + 2]
@@ -155,3 +217,6 @@ class CPU:
     def mult_2_print(self):
         reg = 0
         print(self.reg[reg] * 2)
+
+    def handle_jmp(self):
+        self.pc = self.reg[self.ram[self.pc + 1]]
